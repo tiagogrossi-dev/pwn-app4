@@ -19,17 +19,11 @@ app.use("/auth", routesAuth);
 app.get("/", function (_req, res) {
 
   res.send(`
-
     <section style="margin: 2rem; text-align: center">
-
       <div style="display: flex; flex-direction: column">
-
         <a href="https://pwn-tgs-app4.herokuapp.com/">Acesse aqui</a>
-
       </div>
-
     </section>
-
   `);
 
 });
