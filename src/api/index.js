@@ -1,19 +1,63 @@
 require("dotenv").config();
 const express = require("express");
+const knex = require("../db/knex");
+const jwt = require("jsonwebtoken");
 
-const knex = require ('knex') ({
-  client: 'pg',
-  connection: {
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-      rejectUnauthorized: false
-    },
+const checkToken = (req, res, next) => {
+  const authHeader = req.get("Authorization");
+  if (!authHeader) {
+    res.status(403).json({ message: "Ops... Token requerida!" }).end();
+  } else {
+    const token = authHeader.split(" ")[1];
+    jwt.verify(token, process.env.ENV_SECRET_KEY, (err, decodedToken) => {
+      if (err) {
+        res.status(401).json({ message: "Ops... Token invalida!" }).end();
+      } else {
+        req.token = decodedToken;
+        req.userId = decodedToken.id;
+        next();
+      }
+    });
   }
-})
+};
+
+const isAdmin = (req, res, next) => {
+  knex("usuarios")
+    .where({ id: req.userId })
+    .first()
+    .then((usuario) => {
+      if (usuario) {
+        let roles = usuario.roles.split(";");
+        let adminRole = roles.find((i) => i === "ADMIN");
+        if (adminRole === "ADMIN") {
+          next();
+          return;
+        } else {
+          res.status(403).json({ message: "Ops... Role de ADMIN requerida" });
+          return;
+        }
+      }
+    })
+    .catch((err) => {
+      res.status(500).json({
+        message: "Ops... Erro ao verificar roles de usuário - " + err.message,
+      });
+    });
+};
+
+// const knex = require ('knex') ({
+//   client: 'pg',
+//   connection: {
+//     connectionString: process.env.DATABASE_URL,
+//     ssl: {
+//       rejectUnauthorized: false
+//     },
+//   }
+// })
 
 const routesApi = express.Router();
 
-routesApi.post("/produto", (req, res) => {
+routesApi.post("/produto", checkToken, isAdmin, (req, res) => {
   const { descricao, valor, marca } = req.body;
 
   if (!descricao || !valor || !marca) {
@@ -47,7 +91,7 @@ routesApi.get("/produto", (req, res) => {
 });
 
 
-routesApi.get("/produto/:id", (req, res) => {
+routesApi.get("/produto/:id",checkToken, (req, res) => {
   let { id } = req.params;
 
   return knex("produto")
@@ -62,7 +106,7 @@ routesApi.get("/produto/:id", (req, res) => {
 });
 
 
-routesApi.put("/produto/:id", (req, res) => {
+routesApi.put("/produto/:id", checkToken, isAdmin, (req, res) => {
   const { id } = req.params;
   const { descricao, valor, marca } = req.body;
   const atualizado_em = knex.fn.now();
@@ -93,7 +137,7 @@ routesApi.put("/produto/:id", (req, res) => {
 });
 
 
-routesApi.delete("/produto:id", (req, res) => {
+routesApi.delete("/produto/:id", checkToken, isAdmin, (req, res) => {
   const { id } = req.params;
 
   return knex("produto")
